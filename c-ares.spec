@@ -1,7 +1,7 @@
 Summary: A library that performs asynchronous DNS operations
 Name: c-ares
 Version: 1.10.0
-Release: 1%{?dist}
+Release: 3%{?dist}
 License: MIT
 Group: System Environment/Libraries
 URL: http://c-ares.haxx.se/
@@ -74,6 +74,12 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man3/ares_*
 
 %changelog
+* Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 1.10.0-3
+- Mass rebuild 2014-01-24
+
+* Fri Dec 27 2013 Daniel Mach <dmach@redhat.com> - 1.10.0-2
+- Mass rebuild 2013-12-27
+
 * Mon May 13 2013 Jakub Hrozek <jhrozek@redhat.com> - 1.10.1-1
 - New upstream release 1.10
 - Obsolete upstreamed patches

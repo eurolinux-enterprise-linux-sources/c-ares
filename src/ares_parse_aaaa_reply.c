@@ -1,4 +1,3 @@
-/* $Id: ares_parse_aaaa_reply.c,v 1.16 2009-11-23 01:24:17 yangtse Exp $ */
 
 /* Copyright 1998 by the Massachusetts Institute of Technology.
  * Copyright 2005 Dominick Meglio
@@ -18,9 +17,6 @@
 
 #include "ares_setup.h"
 
-#ifdef HAVE_SYS_SOCKET_H
-#  include <sys/socket.h>
-#endif
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
 #endif
@@ -43,15 +39,13 @@
 #  include <strings.h>
 #endif
 
-#include <stdlib.h>
-#include <string.h>
 #ifdef HAVE_LIMITS_H
 #  include <limits.h>
 #endif
 
 #include "ares.h"
 #include "ares_dns.h"
-#include "inet_net_pton.h"
+#include "ares_inet_net_pton.h"
 #include "ares_private.h"
 
 int ares_parse_aaaa_reply(const unsigned char *abuf, int alen,
@@ -65,7 +59,7 @@ int ares_parse_aaaa_reply(const unsigned char *abuf, int alen,
   long len;
   const unsigned char *aptr;
   char *hostname, *rr_name, *rr_data, **aliases;
-  struct in6_addr *addrs;
+  struct ares_in6_addr *addrs;
   struct hostent *hostent;
   const int max_addr_ttls = (addrttls && naddrttls) ? *naddrttls : 0;
 
@@ -101,7 +95,7 @@ int ares_parse_aaaa_reply(const unsigned char *abuf, int alen,
   /* Allocate addresses and aliases; ancount gives an upper bound for both. */
   if (host)
     {
-      addrs = malloc(ancount * sizeof(struct in6_addr));
+      addrs = malloc(ancount * sizeof(struct ares_in6_addr));
       if (!addrs)
         {
           free(hostname);
@@ -133,6 +127,7 @@ int ares_parse_aaaa_reply(const unsigned char *abuf, int alen,
       aptr += len;
       if (aptr + RRFIXEDSZ > abuf + alen)
         {
+          free(rr_name);
           status = ARES_EBADRESP;
           break;
         }
@@ -141,29 +136,37 @@ int ares_parse_aaaa_reply(const unsigned char *abuf, int alen,
       rr_len = DNS_RR_LEN(aptr);
       rr_ttl = DNS_RR_TTL(aptr);
       aptr += RRFIXEDSZ;
+      if (aptr + rr_len > abuf + alen)
+        {
+          free(rr_name);
+          status = ARES_EBADRESP;
+          break;
+        }
 
       if (rr_class == C_IN && rr_type == T_AAAA
-          && rr_len == sizeof(struct in6_addr)
+          && rr_len == sizeof(struct ares_in6_addr)
           && strcasecmp(rr_name, hostname) == 0)
         {
           if (addrs)
             {
-              if (aptr + sizeof(struct in6_addr) > abuf + alen)
+              if (aptr + sizeof(struct ares_in6_addr) > abuf + alen)
               {
+                free(rr_name);
                 status = ARES_EBADRESP;
                 break;
               }
-              memcpy(&addrs[naddrs], aptr, sizeof(struct in6_addr));
+              memcpy(&addrs[naddrs], aptr, sizeof(struct ares_in6_addr));
             }
           if (naddrs < max_addr_ttls)
             {
               struct ares_addr6ttl * const at = &addrttls[naddrs];
-              if (aptr + sizeof(struct in6_addr) > abuf + alen)
+              if (aptr + sizeof(struct ares_in6_addr) > abuf + alen)
               {
+                free(rr_name);
                 status = ARES_EBADRESP;
                 break;
               }
-              memcpy(&at->ip6addr, aptr,  sizeof(struct in6_addr));
+              memcpy(&at->ip6addr, aptr,  sizeof(struct ares_in6_addr));
               at->ttl = rr_ttl;
             }
           naddrs++;
@@ -202,7 +205,9 @@ int ares_parse_aaaa_reply(const unsigned char *abuf, int alen,
         }
     }
 
-  if (status == ARES_SUCCESS && naddrs == 0)
+  /* the check for naliases to be zero is to make sure CNAME responses
+     don't get caught here */
+  if (status == ARES_SUCCESS && naddrs == 0 && naliases == 0)
     status = ARES_ENODATA;
   if (status == ARES_SUCCESS)
     {
@@ -233,10 +238,12 @@ int ares_parse_aaaa_reply(const unsigned char *abuf, int alen,
                   hostent->h_name = hostname;
                   hostent->h_aliases = aliases;
                   hostent->h_addrtype = AF_INET6;
-                  hostent->h_length = sizeof(struct in6_addr);
+                  hostent->h_length = sizeof(struct ares_in6_addr);
                   for (i = 0; i < naddrs; i++)
                     hostent->h_addr_list[i] = (char *) &addrs[i];
                   hostent->h_addr_list[naddrs] = NULL;
+                  if (!naddrs && addrs)
+                    free(addrs);
                   *host = hostent;
                   return ARES_SUCCESS;
                 }

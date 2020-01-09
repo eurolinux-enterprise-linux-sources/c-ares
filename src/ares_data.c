@@ -1,6 +1,5 @@
-/* $Id: ares_data.c,v 1.2 2009-11-20 09:06:33 yangtse Exp $ */
 
-/* Copyright (C) 2009 by Daniel Stenberg
+/* Copyright (C) 2009-2013 by Daniel Stenberg
  *
  * Permission to use, copy, modify, and distribute this
  * software and its documentation for any purpose and without
@@ -34,6 +33,7 @@
 ** of c-ares functions returning pointers that must be free'ed using this
 ** function is:
 **
+**   ares_get_servers()
 **   ares_parse_srv_reply()
 **   ares_parse_txt_reply()
 */
@@ -45,13 +45,31 @@ void ares_free_data(void *dataptr)
   if (!dataptr)
     return;
 
+#ifdef __INTEL_COMPILER
+#  pragma warning(push)
+#  pragma warning(disable:1684)
+   /* 1684: conversion from pointer to same-sized integral type */
+#endif
+
   ptr = (void *)((char *)dataptr - offsetof(struct ares_data, data));
+
+#ifdef __INTEL_COMPILER
+#  pragma warning(pop)
+#endif
 
   if (ptr->mark != ARES_DATATYPE_MARK)
     return;
 
   switch (ptr->type)
     {
+      case ARES_DATATYPE_MX_REPLY:
+
+        if (ptr->data.mx_reply.next)
+          ares_free_data(ptr->data.mx_reply.next);
+        if (ptr->data.mx_reply.host)
+          free(ptr->data.mx_reply.host);
+        break;
+
       case ARES_DATATYPE_SRV_REPLY:
 
         if (ptr->data.srv_reply.next)
@@ -67,6 +85,33 @@ void ares_free_data(void *dataptr)
         if (ptr->data.txt_reply.txt)
           free(ptr->data.txt_reply.txt);
         break;
+
+      case ARES_DATATYPE_ADDR_NODE:
+
+        if (ptr->data.addr_node.next)
+          ares_free_data(ptr->data.addr_node.next);
+        break;
+
+      case ARES_DATATYPE_NAPTR_REPLY:
+
+        if (ptr->data.naptr_reply.next)
+          ares_free_data(ptr->data.naptr_reply.next);
+        if (ptr->data.naptr_reply.flags)
+          free(ptr->data.naptr_reply.flags);
+        if (ptr->data.naptr_reply.service)
+          free(ptr->data.naptr_reply.service);
+        if (ptr->data.naptr_reply.regexp)
+          free(ptr->data.naptr_reply.regexp);
+        if (ptr->data.naptr_reply.replacement)
+          free(ptr->data.naptr_reply.replacement);
+        break;
+
+      case ARES_DATATYPE_SOA_REPLY:
+        if (ptr->data.soa_reply.nsname)
+          free(ptr->data.soa_reply.nsname);
+        if (ptr->data.soa_reply.hostmaster)
+          free(ptr->data.soa_reply.hostmaster);
+	break;
 
       default:
         return;
@@ -97,6 +142,12 @@ void *ares_malloc_data(ares_datatype type)
 
   switch (type)
     {
+      case ARES_DATATYPE_MX_REPLY:
+        ptr->data.mx_reply.next = NULL;
+        ptr->data.mx_reply.host = NULL;
+        ptr->data.mx_reply.priority = 0;
+        break;
+
       case ARES_DATATYPE_SRV_REPLY:
         ptr->data.srv_reply.next = NULL;
         ptr->data.srv_reply.host = NULL;
@@ -108,8 +159,35 @@ void *ares_malloc_data(ares_datatype type)
       case ARES_DATATYPE_TXT_REPLY:
         ptr->data.txt_reply.next = NULL;
         ptr->data.txt_reply.txt = NULL;
-        ptr->data.txt_reply.length  = 0;
+        ptr->data.txt_reply.length = 0;
         break;
+
+      case ARES_DATATYPE_ADDR_NODE:
+        ptr->data.addr_node.next = NULL;
+        ptr->data.addr_node.family = 0;
+        memset(&ptr->data.addr_node.addrV6, 0,
+               sizeof(ptr->data.addr_node.addrV6));
+        break;
+
+      case ARES_DATATYPE_NAPTR_REPLY:
+        ptr->data.naptr_reply.next = NULL;
+        ptr->data.naptr_reply.flags = NULL;
+        ptr->data.naptr_reply.service = NULL;
+        ptr->data.naptr_reply.regexp = NULL;
+        ptr->data.naptr_reply.replacement = NULL;
+        ptr->data.naptr_reply.order = 0;
+        ptr->data.naptr_reply.preference = 0;
+        break;
+
+      case ARES_DATATYPE_SOA_REPLY:
+        ptr->data.soa_reply.nsname = NULL;
+        ptr->data.soa_reply.hostmaster = NULL;
+        ptr->data.soa_reply.serial = 0;
+        ptr->data.soa_reply.refresh = 0;
+        ptr->data.soa_reply.retry = 0;
+        ptr->data.soa_reply.expire = 0;
+        ptr->data.soa_reply.minttl = 0;
+	break;
 
       default:
         free(ptr);
@@ -120,24 +198,4 @@ void *ares_malloc_data(ares_datatype type)
   ptr->type = type;
 
   return &ptr->data;
-}
-
-
-/*
-** ares_get_datatype() - c-ares internal helper function.
-**
-** This function returns the ares_datatype of the data stored in a
-** private ares_data struct when given the public API pointer.
-*/
-
-ares_datatype ares_get_datatype(void * dataptr)
-{
-  struct ares_data *ptr;
-
-  ptr = (void *)((char *)dataptr - offsetof(struct ares_data, data));
-
-  if (ptr->mark == ARES_DATATYPE_MARK)
-    return ptr->type;
-
-  return ARES_DATATYPE_UNKNOWN;
 }

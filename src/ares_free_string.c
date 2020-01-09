@@ -1,4 +1,3 @@
-/* $Id: ares_free_string.c,v 1.7 2009-11-02 11:55:53 yangtse Exp $ */
 
 /* Copyright 2000 by the Massachusetts Institute of Technology.
  *
@@ -16,7 +15,7 @@
  */
 
 #include "ares_setup.h"
-#include <stdlib.h>
+
 #include "ares.h"
 #include "ares_private.h"
 

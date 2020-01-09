@@ -1,6 +1,5 @@
-/* $Id: ares__get_hostent.c,v 1.24 2009-11-02 11:55:53 yangtse Exp $ */
 
-/* Copyright 1998, 2009 by the Massachusetts Institute of Technology.
+/* Copyright 1998, 2011 by the Massachusetts Institute of Technology.
  *
  * Permission to use, copy, modify, and distribute this
  * software and its documentation for any purpose and without
@@ -17,9 +16,6 @@
 
 #include "ares_setup.h"
 
-#ifdef HAVE_SYS_SOCKET_H
-#  include <sys/socket.h>
-#endif
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
 #endif
@@ -31,7 +27,8 @@
 #endif
 
 #include "ares.h"
-#include "inet_net_pton.h"
+#include "ares_inet_net_pton.h"
+#include "ares_nowarn.h"
 #include "ares_private.h"
 
 int ares__get_hostent(FILE *fp, int family, struct hostent **host)
@@ -146,7 +143,7 @@ int ares__get_hostent(FILE *fp, int family, struct hostent **host)
             {
               /* Actual network address family and length. */
               addr.family = AF_INET;
-              addrlen = sizeof(struct in_addr);
+              addrlen = sizeof(addr.addrV4);
             }
         }
       if ((family == AF_INET6) || ((family == AF_UNSPEC) && (!addrlen)))
@@ -155,7 +152,7 @@ int ares__get_hostent(FILE *fp, int family, struct hostent **host)
             {
               /* Actual network address family and length. */
               addr.family = AF_INET6;
-              addrlen = sizeof(struct in6_addr);
+              addrlen = sizeof(addr.addrV6);
             }
         }
       if (!addrlen)
@@ -189,9 +186,9 @@ int ares__get_hostent(FILE *fp, int family, struct hostent **host)
       if (!hostent->h_addr_list[0])
         break;
       if (addr.family == AF_INET)
-        memcpy(hostent->h_addr_list[0], &addr.addrV4, sizeof(struct in_addr));
+        memcpy(hostent->h_addr_list[0], &addr.addrV4, sizeof(addr.addrV4));
       else
-        memcpy(hostent->h_addr_list[0], &addr.addrV6, sizeof(struct in6_addr));
+        memcpy(hostent->h_addr_list[0], &addr.addrV6, sizeof(addr.addrV6));
 
       /* Copy aliases. */
       hostent->h_aliases = malloc((naliases + 1) * sizeof(char *));
@@ -220,8 +217,8 @@ int ares__get_hostent(FILE *fp, int family, struct hostent **host)
         break;
 
       /* Copy actual network address family and length. */
-      hostent->h_addrtype = addr.family;
-      hostent->h_length = (int)addrlen;
+      hostent->h_addrtype = aresx_sitoss(addr.family);
+      hostent->h_length = aresx_uztoss(addrlen);
 
       /* Free line buffer. */
       free(line);

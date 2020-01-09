@@ -1,4 +1,3 @@
-/* $Id: ares_library_init.c,v 1.11 2009-11-11 08:56:47 yangtse Exp $ */
 
 /* Copyright 1998 by the Massachusetts Institute of Technology.
  * Copyright (C) 2004-2009 by Daniel Stenberg
@@ -27,6 +26,7 @@
 #ifdef USE_WINSOCK
 fpGetNetworkParams_t ares_fpGetNetworkParams = ZERO_NULL;
 fpSystemFunction036_t ares_fpSystemFunction036 = ZERO_NULL;
+fpGetAdaptersAddresses_t ares_fpGetAdaptersAddresses = ZERO_NULL;
 #endif
 
 /* library-private global vars with source visibility restricted to this file */
@@ -55,6 +55,15 @@ static int ares_win32_init(void)
     {
       FreeLibrary(hnd_iphlpapi);
       return ARES_EADDRGETNETWORKPARAMS;
+    }
+
+  ares_fpGetAdaptersAddresses = (fpGetAdaptersAddresses_t)
+    GetProcAddress(hnd_iphlpapi, "GetAdaptersAddresses");
+  if (!ares_fpGetAdaptersAddresses)
+    {
+      /* This can happen on clients before WinXP, I don't
+         think it should be an error, unless we don't want to
+         support Windows 2000 anymore */
     }
 
   /*
@@ -92,7 +101,10 @@ int ares_library_init(int flags)
   int res;
 
   if (ares_initialized)
-    return ARES_SUCCESS;
+    {
+      ares_initialized++;
+      return ARES_SUCCESS;
+    }
   ares_initialized++;
 
   if (flags & ARES_LIB_INIT_WIN32)
@@ -113,6 +125,8 @@ void ares_library_cleanup(void)
   if (!ares_initialized)
     return;
   ares_initialized--;
+  if (ares_initialized)
+    return;
 
   if (ares_init_flags & ARES_LIB_INIT_WIN32)
     ares_win32_cleanup();

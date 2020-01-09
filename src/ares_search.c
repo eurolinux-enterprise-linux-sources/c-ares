@@ -1,4 +1,3 @@
-/* $Id: ares_search.c,v 1.20 2009-11-02 11:55:53 yangtse Exp $ */
 
 /* Copyright 1998 by the Massachusetts Institute of Technology.
  *
@@ -16,12 +15,6 @@
  */
 
 #include "ares_setup.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <errno.h>
 
 #ifdef HAVE_STRINGS_H
 #  include <strings.h>
@@ -288,12 +281,12 @@ static int single_domain(ares_channel channel, const char *name, char **s)
                 }
               free(line);
               fclose(fp);
-              if (status != ARES_SUCCESS)
+              if (status != ARES_SUCCESS && status != ARES_EOF)
                 return status;
             }
           else
             {
-              error = errno;
+              error = ERRNO;
               switch(error)
                 {
                 case ENOENT:

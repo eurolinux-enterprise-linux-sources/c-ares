@@ -1,4 +1,3 @@
-/* $Id: ares_parse_srv_reply.c,v 1.12 2009-11-26 01:21:21 yangtse Exp $ */
 
 /* Copyright 1998 by the Massachusetts Institute of Technology.
  * Copyright (C) 2009 by Jakub Hrozek <jhrozek@redhat.com>
@@ -18,9 +17,6 @@
 
 #include "ares_setup.h"
 
-#ifdef HAVE_SYS_SOCKET_H
-#  include <sys/socket.h>
-#endif
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
 #endif
@@ -39,8 +35,6 @@
 #  include <arpa/nameser_compat.h>
 #endif
 
-#include <stdlib.h>
-#include <string.h>
 #include "ares.h"
 #include "ares_dns.h"
 #include "ares_data.h"
@@ -111,6 +105,11 @@ ares_parse_srv_reply (const unsigned char *abuf, int alen,
       rr_class = DNS_RR_CLASS (aptr);
       rr_len = DNS_RR_LEN (aptr);
       aptr += RRFIXEDSZ;
+      if (aptr + rr_len > abuf + alen)
+        {
+          status = ARES_EBADRESP;
+          break;
+        }
 
       /* Check if we are really looking at a SRV record */
       if (rr_class == C_IN && rr_type == T_SRV)
@@ -140,11 +139,11 @@ ares_parse_srv_reply (const unsigned char *abuf, int alen,
           srv_last = srv_curr;
 
           vptr = aptr;
-          srv_curr->priority = ntohs (*((unsigned short *)vptr));
+          srv_curr->priority = DNS__16BIT(vptr);
           vptr += sizeof(unsigned short);
-          srv_curr->weight = ntohs (*((unsigned short *)vptr));
+          srv_curr->weight = DNS__16BIT(vptr);
           vptr += sizeof(unsigned short);
-          srv_curr->port = ntohs (*((unsigned short *)vptr));
+          srv_curr->port = DNS__16BIT(vptr);
           vptr += sizeof(unsigned short);
 
           status = ares_expand_name (vptr, abuf, alen, &srv_curr->host, &len);

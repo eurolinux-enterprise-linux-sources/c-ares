@@ -1,4 +1,3 @@
-/* $Id: ares__read_line.c,v 1.14 2009-11-10 18:41:03 yangtse Exp $ */
 
 /* Copyright 1998 by the Massachusetts Institute of Technology.
  *
@@ -16,10 +15,9 @@
  */
 
 #include "ares_setup.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+
 #include "ares.h"
+#include "ares_nowarn.h"
 #include "ares_private.h"
 
 /* This is an internal function.  Its contract is to read a line from
@@ -46,7 +44,9 @@ int ares__read_line(FILE *fp, char **buf, size_t *bufsize)
 
   for (;;)
     {
-      if (!fgets(*buf + offset, (int)(*bufsize - offset), fp))
+      int bytestoread = aresx_uztosi(*bufsize - offset);
+
+      if (!fgets(*buf + offset, bytestoread, fp))
         return (offset != 0) ? 0 : (ferror(fp)) ? ARES_EFILE : ARES_EOF;
       len = offset + strlen(*buf + offset);
       if ((*buf)[len - 1] == '\n')
@@ -55,6 +55,8 @@ int ares__read_line(FILE *fp, char **buf, size_t *bufsize)
           break;
         }
       offset = len;
+      if(len < *bufsize - 1)
+        continue;
 
       /* Allocate more space. */
       newbuf = realloc(*buf, *bufsize * 2);

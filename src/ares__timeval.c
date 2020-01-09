@@ -1,4 +1,3 @@
-/* $Id: ares__timeval.c,v 1.6 2009-11-02 11:55:53 yangtse Exp $ */
 
 /* Copyright (C) 2008 by Daniel Stenberg et al
  *

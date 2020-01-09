@@ -1,22 +1,21 @@
 Summary: A library that performs asynchronous DNS operations
 Name: c-ares
-Version: 1.7.0
-Release: 6%{?dist}
+Version: 1.10.0
+Release: 3%{?dist}
 License: MIT
 Group: System Environment/Libraries
 URL: http://c-ares.haxx.se/
 Source0: http://c-ares.haxx.se/c-ares-%{version}.tar.gz
 Source1: LICENSE
-Patch0: %{name}-1.7.0-optflags.patch
-Patch1: 0001-Allow-the-use-of-IPv6-nameservers.patch
-Patch2: c-ares-multilib.patch
-Patch3: 0001-ares_init-Last-not-first-instance-of-domain-or-searc.patch
-Patch4: 0001-Only-fall-back-to-AF_INET-searches-when-looking-for-.patch
-Patch5: 0001-ares_parse_a_reply-fix-memleak.patch
-Patch6: c-ares-1.7-missing-break.patch
-Patch7: c-ares-1.7-sigbus.patch
-Patch8: c-ares-enodata.patch
+Patch0: 0001-Use-RPM-compiler-options.patch
+Patch1: c-ares-1.10.0-multilib.patch
+Patch2: 0003-host_callback-Fall-back-to-AF_INET-on-searching-with.patch
+Patch3: 0004-Don-t-override-explicitly-specified-search-domains.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+
+BuildRequires: autoconf
+BuildRequires: automake
+BuildRequires: libtool
 
 %description
 c-ares is a C library that performs DNS requests and name resolves 
@@ -36,18 +35,15 @@ compile applications or shared objects that use c-ares.
 %prep
 %setup -q
 %patch0 -p1 -b .optflags
-%patch1 -p1 -b .ipv6
-%patch2 -p1 -b .multilib
-%patch3 -p1 -b .search
-%patch4 -p1 -b .fallback
-%patch5 -p1 -b .memleak
-%patch6 -p1 -b .break
-%patch7 -p1 -b .sigbus
-%patch8 -p1 -b .enodata
+%patch1 -p1 -b .multilib
+%patch2 -p1 -b .fallback
+%patch3 -p1 -b .searchdom
+
 cp %{SOURCE1} .
 f=CHANGES ; iconv -f iso-8859-1 -t utf-8 $f -o $f.utf8 ; mv $f.utf8 $f
 
 %build
+autoreconf -if
 %configure --enable-shared --disable-static \
            --disable-dependency-tracking
 %{__make} %{?_smp_mflags}
@@ -80,6 +76,20 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man3/ares_*
 
 %changelog
+* Thu Jul 24 2014 Jakub Hrozek <jhrozek@redhat.com> - 1.10.0-3
+- Fall back to AF_INET when ares_gethostbyname() is called with AF_UNSPEC
+- Only set search domains from /etc/resolv.conf if there isn't a value
+  already present in the channel (David Drisdale)
+- Related: rhbz#1077544 - Rebase c-ares to version 1.10
+
+* Tue May 20 2014 Jakub Hrozek <jhrozek@redhat.com> - 1.10.0-2
+- Run autoreconf during build
+- Related: rhbz#1077544 - Rebase c-ares to version 1.10
+
+* Thu Apr  3 2014 Jakub Hrozek <jhrozek@redhat.com> - 1.10.0-1
+- Rebase c-ares to 1.10
+- Resolves: rhbz#1077544 - Rebase c-ares to version 1.10
+
 * Sat Mar  3 2012 Jakub Hrozek <jhrozek@redhat.com> - 1.7.0-6
 - Only fall back to AF_INET searches when looking for AF_UNSPEC
   addresses (#730695)

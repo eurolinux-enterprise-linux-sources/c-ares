@@ -1,6 +1,6 @@
-/* $Id: ares_destroy.c,v 1.14 2009-11-02 11:55:53 yangtse Exp $ */
 
 /* Copyright 1998 by the Massachusetts Institute of Technology.
+ * Copyright (C) 2004-2011 by Daniel Stenberg
  *
  * Permission to use, copy, modify, and distribute this
  * software and its documentation for any purpose and without
@@ -16,8 +16,9 @@
  */
 
 #include "ares_setup.h"
+
 #include <assert.h>
-#include <stdlib.h>
+
 #include "ares.h"
 #include "ares_private.h"
 
@@ -25,13 +26,16 @@ void ares_destroy_options(struct ares_options *options)
 {
   int i;
 
-  free(options->servers);
+  if(options->servers)
+    free(options->servers);
   for (i = 0; i < options->ndomains; i++)
     free(options->domains[i]);
-  free(options->domains);
+  if(options->domains)
+    free(options->domains);
   if(options->sortlist)
     free(options->sortlist);
-  free(options->lookups);
+  if(options->lookups)
+    free(options->lookups);
 }
 
 void ares_destroy(ares_channel channel)
@@ -67,15 +71,7 @@ void ares_destroy(ares_channel channel)
     }
 #endif
 
-  if (channel->servers) {
-    for (i = 0; i < channel->nservers; i++)
-      {
-        struct server_state *server = &channel->servers[i];
-        ares__close_sockets(channel, server);
-        assert(ares__is_list_empty(&(server->queries_to_server)));
-      }
-    free(channel->servers);
-  }
+  ares__destroy_servers_state(channel);
 
   if (channel->domains) {
     for (i = 0; i < channel->ndomains; i++)
@@ -90,4 +86,23 @@ void ares_destroy(ares_channel channel)
     free(channel->lookups);
 
   free(channel);
+}
+
+void ares__destroy_servers_state(ares_channel channel)
+{
+  struct server_state *server;
+  int i;
+
+  if (channel->servers)
+    {
+      for (i = 0; i < channel->nservers; i++)
+        {
+          server = &channel->servers[i];
+          ares__close_sockets(channel, server);
+          assert(ares__is_list_empty(&server->queries_to_server));
+        }
+      free(channel->servers);
+      channel->servers = NULL;
+    }
+  channel->nservers = -1;
 }

@@ -59,6 +59,9 @@ print "running configure\n";
 print "running make pdf\n";
 `make -s pdf`;
 
+print "produce CHANGES\n";
+`git log --pretty=fuller --no-color --date=short --decorate=full -1000 | ./git2changes.pl > CHANGES.dist`;
+
 # now make the actual tarball
 print "running make dist\n";
 `make dist VERSION=$version`;
@@ -71,4 +74,4 @@ print "removing temporary configure.ac file\n";
 print "removing temporary ares_version.h file\n";
 `rm ares_version.h.dist`;
 
-print "NOTE: now cvs tag this release!\n";
+print "NOTE: now tag this release!\n";

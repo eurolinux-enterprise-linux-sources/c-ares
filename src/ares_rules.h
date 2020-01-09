@@ -1,7 +1,6 @@
 #ifndef __CARES_RULES_H
 #define __CARES_RULES_H
 
-/* $Id: ares_rules.h,v 1.3 2009-10-27 16:56:20 yangtse Exp $ */
 
 /* Copyright (C) 2009 by Daniel Stenberg et al
  *

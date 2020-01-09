@@ -1,9 +1,8 @@
 #ifndef __CARES_BUILD_H
 #define __CARES_BUILD_H
 
-/* $Id: ares_build.h.dist,v 1.9 2009-05-12 01:57:53 yangtse Exp $ */
 
-/* Copyright (C) 2009 by Daniel Stenberg et al
+/* Copyright (C) 2009 - 2013 by Daniel Stenberg et al
  *
  * Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -65,7 +64,7 @@
  * created.
  *
  * File ares_build.h.dist is not included in the distribution archive.
- * File ares_build.h is not present in the CVS tree.
+ * File ares_build.h is not present in the git tree.
  *
  * The distributed ares_build.h file is only intended to be used on systems
  * which can not run the also distributed configure script.
@@ -75,7 +74,7 @@
  * and specific to the library being configured and built, which is generated
  * from the ares_build.h.in template file.
  *
- * If you check out from CVS on a non-configure platform, you must run the
+ * If you check out from git on a non-configure platform, you must run the
  * appropriate buildconf* script to set up ares_build.h and other local files.
  *
  */
@@ -217,9 +216,11 @@
 /* ===================================== */
 
 #elif defined(__GNUC__)
-#  if defined(__i386__) || defined(__ppc__)
+#  if defined(__ILP32__) || \
+      defined(__i386__) || defined(__ppc__) || defined(__arm__)
 #    define CARES_SIZEOF_LONG           4
-#  elif defined(__x86_64__) || defined(__ppc64__)
+#  elif defined(__LP64__) || \
+        defined(__x86_64__) || defined(__ppc64__)
 #    define CARES_SIZEOF_LONG           8
 #  endif
 #  define CARES_TYPEOF_ARES_SOCKLEN_T socklen_t

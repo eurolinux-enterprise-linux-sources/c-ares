@@ -1,4 +1,3 @@
-/* $Id: bitncmp.c,v 1.8 2009-11-02 11:55:54 yangtse Exp $ */
 
 /*
  * Copyright (c) 2004 by Internet Systems Consortium, Inc. ("ISC")
@@ -34,27 +33,27 @@
  * author:
  *	Paul Vixie (ISC), June 1996
  */
-int
-ares_bitncmp(const void *l, const void *r, int n) {
-	unsigned int lb, rb;
-	int x, b;
+int ares__bitncmp(const void *l, const void *r, int n)
+{
+  unsigned int lb, rb;
+  int x, b;
 
-	b = n / 8;
-	x = memcmp(l, r, b);
-	if (x || (n % 8) == 0)
-		return (x);
+  b = n / 8;
+  x = memcmp(l, r, b);
+  if (x || (n % 8) == 0)
+    return (x);
 
-	lb = ((const unsigned char *)l)[b];
-	rb = ((const unsigned char *)r)[b];
-	for (b = n % 8; b > 0; b--) {
-		if ((lb & 0x80) != (rb & 0x80)) {
-			if (lb & 0x80)
-				return (1);
-			return (-1);
-		}
-		lb <<= 1;
-		rb <<= 1;
-	}
-	return (0);
+  lb = ((const unsigned char *)l)[b];
+  rb = ((const unsigned char *)r)[b];
+  for (b = n % 8; b > 0; b--) {
+    if ((lb & 0x80) != (rb & 0x80)) {
+      if (lb & 0x80)
+        return (1);
+      return (-1);
+    }
+    lb <<= 1;
+    rb <<= 1;
+  }
+  return (0);
 }
 #endif

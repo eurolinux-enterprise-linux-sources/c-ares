@@ -1,9 +1,8 @@
 #ifndef __SETUP_ONCE_H
 #define __SETUP_ONCE_H
 
-/* $Id: setup_once.h,v 1.36 2009-06-19 00:41:03 yangtse Exp $ */
 
-/* Copyright (C) 2004 - 2009 by Daniel Stenberg et al
+/* Copyright (C) 2004 - 2013 by Daniel Stenberg et al
  *
  * Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -36,7 +35,10 @@
 #include <string.h>
 #include <stdarg.h>
 #include <ctype.h>
+
+#ifdef HAVE_ERRNO_H
 #include <errno.h>
+#endif
 
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
@@ -70,8 +72,36 @@
 #include <fcntl.h>
 #endif
 
-#ifdef HAVE_STDBOOL_H
+#if defined(HAVE_STDBOOL_H) && defined(HAVE_BOOL_T)
 #include <stdbool.h>
+#endif
+
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
+#ifdef __hpux
+#  if !defined(_XOPEN_SOURCE_EXTENDED) || defined(_KERNEL)
+#    ifdef _APP32_64BIT_OFF_T
+#      define OLD_APP32_64BIT_OFF_T _APP32_64BIT_OFF_T
+#      undef _APP32_64BIT_OFF_T
+#    else
+#      undef OLD_APP32_64BIT_OFF_T
+#    endif
+#  endif
+#endif
+
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+
+#ifdef __hpux
+#  if !defined(_XOPEN_SOURCE_EXTENDED) || defined(_KERNEL)
+#    ifdef OLD_APP32_64BIT_OFF_T
+#      define _APP32_64BIT_OFF_T OLD_APP32_64BIT_OFF_T
+#      undef OLD_APP32_64BIT_OFF_T
+#    endif
+#  endif
 #endif
 
 
@@ -230,6 +260,8 @@ struct timeval {
 #  define sclose(x)  closesocket((x))
 #elif defined(HAVE_CLOSESOCKET_CAMEL)
 #  define sclose(x)  CloseSocket((x))
+#elif defined(HAVE_CLOSE_S)
+#  define sclose(x)  close_s((x))
 #else
 #  define sclose(x)  close((x))
 #endif
@@ -249,30 +281,84 @@ struct timeval {
 #define ISPRINT(x)  (isprint((int)  ((unsigned char)x)))
 #define ISUPPER(x)  (isupper((int)  ((unsigned char)x)))
 #define ISLOWER(x)  (islower((int)  ((unsigned char)x)))
+#define ISASCII(x)  (isascii((int)  ((unsigned char)x)))
 
 #define ISBLANK(x)  (int)((((unsigned char)x) == ' ') || \
                           (((unsigned char)x) == '\t'))
 
+#define TOLOWER(x)  (tolower((int)  ((unsigned char)x)))
+
 
 /*
- * Typedef to 'unsigned char' if bool is not an available 'typedefed' type.
+ * 'bool' stuff compatible with HP-UX headers.
+ */
+
+#if defined(__hpux) && !defined(HAVE_BOOL_T)
+   typedef int bool;
+#  define false 0
+#  define true 1
+#  define HAVE_BOOL_T
+#endif
+
+
+/*
+ * 'bool' exists on platforms with <stdbool.h>, i.e. C99 platforms.
+ * On non-C99 platforms there's no bool, so define an enum for that.
+ * On C99 platforms 'false' and 'true' also exist. Enum uses a
+ * global namespace though, so use bool_false and bool_true.
  */
 
 #ifndef HAVE_BOOL_T
-typedef unsigned char bool;
-#define HAVE_BOOL_T
+  typedef enum {
+      bool_false = 0,
+      bool_true  = 1
+  } bool;
+
+/*
+ * Use a define to let 'true' and 'false' use those enums.  There
+ * are currently no use of true and false in libcurl proper, but
+ * there are some in the examples. This will cater for any later
+ * code happening to use true and false.
+ */
+#  define false bool_false
+#  define true  bool_true
+#  define HAVE_BOOL_T
 #endif
 
 
 /*
- * Default definition of uppercase TRUE and FALSE.
+ * Redefine TRUE and FALSE too, to catch current use. With this
+ * change, 'bool found = 1' will give a warning on MIPSPro, but
+ * 'bool found = TRUE' will not. Change tested on IRIX/MIPSPro,
+ * AIX 5.1/Xlc, Tru64 5.1/cc, w/make test too.
  */
 
 #ifndef TRUE
-#define TRUE 1
+#define TRUE true
 #endif
 #ifndef FALSE
-#define FALSE 0
+#define FALSE false
+#endif
+
+
+/*
+ * Macro WHILE_FALSE may be used to build single-iteration do-while loops,
+ * avoiding compiler warnings. Mostly intended for other macro definitions.
+ */
+
+#define WHILE_FALSE  while(0)
+
+#if defined(_MSC_VER) && !defined(__POCC__)
+#  undef WHILE_FALSE
+#  if (_MSC_VER < 1500)
+#    define WHILE_FALSE  while(1, 0)
+#  else
+#    define WHILE_FALSE \
+__pragma(warning(push)) \
+__pragma(warning(disable:4127)) \
+while(0) \
+__pragma(warning(pop))
+#  endif
 #endif
 
 
@@ -313,7 +399,7 @@ typedef int sig_atomic_t;
 #ifdef DEBUGBUILD
 #define DEBUGF(x) x
 #else
-#define DEBUGF(x) do { } while (0)
+#define DEBUGF(x) do { } WHILE_FALSE
 #endif
 
 
@@ -324,7 +410,7 @@ typedef int sig_atomic_t;
 #if defined(DEBUGBUILD) && defined(HAVE_ASSERT_H)
 #define DEBUGASSERT(x) assert(x)
 #else
-#define DEBUGASSERT(x) do { } while (0)
+#define DEBUGASSERT(x) do { } WHILE_FALSE
 #endif
 
 
@@ -347,7 +433,7 @@ typedef int sig_atomic_t;
  * (or equivalent) on this platform to hide platform details to code using it.
  */
 
-#ifdef WIN32
+#if defined(WIN32) && !defined(WATT32)
 #define ERRNO         ((int)GetLastError())
 #define SET_ERRNO(x)  (SetLastError((DWORD)(x)))
 #else
@@ -367,38 +453,63 @@ typedef int sig_atomic_t;
 #define EINTR            WSAEINTR
 #undef  EINVAL           /* override definition in errno.h */
 #define EINVAL           WSAEINVAL
+#undef  EWOULDBLOCK      /* override definition in errno.h */
 #define EWOULDBLOCK      WSAEWOULDBLOCK
+#undef  EINPROGRESS      /* override definition in errno.h */
 #define EINPROGRESS      WSAEINPROGRESS
+#undef  EALREADY         /* override definition in errno.h */
 #define EALREADY         WSAEALREADY
+#undef  ENOTSOCK         /* override definition in errno.h */
 #define ENOTSOCK         WSAENOTSOCK
+#undef  EDESTADDRREQ     /* override definition in errno.h */
 #define EDESTADDRREQ     WSAEDESTADDRREQ
+#undef  EMSGSIZE         /* override definition in errno.h */
 #define EMSGSIZE         WSAEMSGSIZE
+#undef  EPROTOTYPE       /* override definition in errno.h */
 #define EPROTOTYPE       WSAEPROTOTYPE
+#undef  ENOPROTOOPT      /* override definition in errno.h */
 #define ENOPROTOOPT      WSAENOPROTOOPT
+#undef  EPROTONOSUPPORT  /* override definition in errno.h */
 #define EPROTONOSUPPORT  WSAEPROTONOSUPPORT
 #define ESOCKTNOSUPPORT  WSAESOCKTNOSUPPORT
+#undef  EOPNOTSUPP       /* override definition in errno.h */
 #define EOPNOTSUPP       WSAEOPNOTSUPP
 #define EPFNOSUPPORT     WSAEPFNOSUPPORT
+#undef  EAFNOSUPPORT     /* override definition in errno.h */
 #define EAFNOSUPPORT     WSAEAFNOSUPPORT
+#undef  EADDRINUSE       /* override definition in errno.h */
 #define EADDRINUSE       WSAEADDRINUSE
+#undef  EADDRNOTAVAIL    /* override definition in errno.h */
 #define EADDRNOTAVAIL    WSAEADDRNOTAVAIL
+#undef  ENETDOWN         /* override definition in errno.h */
 #define ENETDOWN         WSAENETDOWN
+#undef  ENETUNREACH      /* override definition in errno.h */
 #define ENETUNREACH      WSAENETUNREACH
+#undef  ENETRESET        /* override definition in errno.h */
 #define ENETRESET        WSAENETRESET
+#undef  ECONNABORTED     /* override definition in errno.h */
 #define ECONNABORTED     WSAECONNABORTED
+#undef  ECONNRESET       /* override definition in errno.h */
 #define ECONNRESET       WSAECONNRESET
+#undef  ENOBUFS          /* override definition in errno.h */
 #define ENOBUFS          WSAENOBUFS
+#undef  EISCONN          /* override definition in errno.h */
 #define EISCONN          WSAEISCONN
+#undef  ENOTCONN         /* override definition in errno.h */
 #define ENOTCONN         WSAENOTCONN
 #define ESHUTDOWN        WSAESHUTDOWN
 #define ETOOMANYREFS     WSAETOOMANYREFS
+#undef  ETIMEDOUT        /* override definition in errno.h */
 #define ETIMEDOUT        WSAETIMEDOUT
+#undef  ECONNREFUSED     /* override definition in errno.h */
 #define ECONNREFUSED     WSAECONNREFUSED
+#undef  ELOOP            /* override definition in errno.h */
 #define ELOOP            WSAELOOP
 #ifndef ENAMETOOLONG     /* possible previous definition in errno.h */
 #define ENAMETOOLONG     WSAENAMETOOLONG
 #endif
 #define EHOSTDOWN        WSAEHOSTDOWN
+#undef  EHOSTUNREACH     /* override definition in errno.h */
 #define EHOSTUNREACH     WSAEHOSTUNREACH
 #ifndef ENOTEMPTY        /* possible previous definition in errno.h */
 #define ENOTEMPTY        WSAENOTEMPTY
@@ -415,7 +526,7 @@ typedef int sig_atomic_t;
  *  Actually use __32_getpwuid() on 64-bit VMS builds for getpwuid()
  */
 
-#if defined(VMS) && \
+#if defined(__VMS) && \
     defined(__INITIAL_POINTER_SIZE) && (__INITIAL_POINTER_SIZE == 64)
 #define getpwuid __32_getpwuid
 #endif
@@ -425,7 +536,7 @@ typedef int sig_atomic_t;
  * Macro argv_item_t hides platform details to code using it.
  */
 
-#ifdef VMS
+#ifdef __VMS
 #define argv_item_t  __char_ptr32
 #else
 #define argv_item_t  char *
@@ -441,4 +552,3 @@ typedef int sig_atomic_t;
 
 
 #endif /* __SETUP_ONCE_H */
-

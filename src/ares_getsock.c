@@ -1,6 +1,5 @@
-/* $Id: ares_getsock.c,v 1.8 2009-11-02 11:55:53 yangtse Exp $ */
 
-/* Copyright (C) 2005 - 2007, Daniel Stenberg
+/* Copyright (C) 2005 - 2010, Daniel Stenberg
  *
  * Permission to use, copy, modify, and distribute this software and its
  * documentation for any purpose and without fee is hereby granted, provided
@@ -15,15 +14,11 @@
 
 #include "ares_setup.h"
 
-#ifdef HAVE_SYS_TIME_H
-#include <sys/time.h>
-#endif
-
 #include "ares.h"
 #include "ares_private.h"
 
 int ares_getsock(ares_channel channel,
-                 int *s,
+                 ares_socket_t *socks,
                  int numsocks) /* size of the 'socks' array */
 {
   struct server_state *server;
@@ -31,8 +26,6 @@ int ares_getsock(ares_channel channel,
   int sockindex=0;
   int bitmap = 0;
   unsigned int setbits = 0xffffffff;
-
-  ares_socket_t *socks = (ares_socket_t *)s;
 
   /* Are there any active queries? */
   int active_queries = !ares__is_list_empty(&(channel->all_queries));

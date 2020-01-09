@@ -1,7 +1,6 @@
 #ifndef __ARES_LLIST_H
 #define __ARES_LLIST_H
 
-/* $Id: ares_llist.h,v 1.1 2007-10-02 02:18:01 yangtse Exp $ */
 
 /* Copyright 1998 by the Massachusetts Institute of Technology.
  *
@@ -36,8 +35,5 @@ void ares__insert_in_list(struct list_node* new_node,
                           struct list_node* old_node);
 
 void ares__remove_from_list(struct list_node* node);
-
-void ares__swap_lists(struct list_node* head_a,
-                      struct list_node* head_b);
 
 #endif /* __ARES_LLIST_H */

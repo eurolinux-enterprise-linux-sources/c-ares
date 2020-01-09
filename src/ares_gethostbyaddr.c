@@ -1,4 +1,3 @@
-/* $Id: ares_gethostbyaddr.c,v 1.35 2009-11-02 11:55:53 yangtse Exp $ */
 
 /* Copyright 1998 by the Massachusetts Institute of Technology.
  *
@@ -16,9 +15,6 @@
  */
 #include "ares_setup.h"
 
-#ifdef HAVE_SYS_SOCKET_H
-#  include <sys/socket.h>
-#endif
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
 #endif
@@ -37,12 +33,9 @@
 #  include <arpa/nameser_compat.h>
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "ares.h"
-#include "inet_net_pton.h"
+#include "ares_inet_net_pton.h"
+#include "ares_platform.h"
 #include "ares_private.h"
 
 #ifdef WATT32
@@ -79,8 +72,8 @@ void ares_gethostbyaddr(ares_channel channel, const void *addr, int addrlen,
       return;
     }
 
-  if ((family == AF_INET && addrlen != sizeof(struct in_addr)) ||
-      (family == AF_INET6 && addrlen != sizeof(struct in6_addr)))
+  if ((family == AF_INET && addrlen != sizeof(aquery->addr.addrV4)) ||
+      (family == AF_INET6 && addrlen != sizeof(aquery->addr.addrV6)))
     {
       callback(arg, ARES_ENOTIMP, 0, NULL);
       return;
@@ -94,9 +87,9 @@ void ares_gethostbyaddr(ares_channel channel, const void *addr, int addrlen,
     }
   aquery->channel = channel;
   if (family == AF_INET)
-    memcpy(&aquery->addr.addrV4, addr, sizeof(struct in_addr));
+    memcpy(&aquery->addr.addrV4, addr, sizeof(aquery->addr.addrV4));
   else
-    memcpy(&aquery->addr.addrV6, addr, sizeof(struct in6_addr));
+    memcpy(&aquery->addr.addrV6, addr, sizeof(aquery->addr.addrV6));
   aquery->addr.family = family;
   aquery->callback = callback;
   aquery->arg = arg;
@@ -152,13 +145,13 @@ static void addr_callback(void *arg, int status, int timeouts,
     {
       if (aquery->addr.family == AF_INET)
         {
-          addrlen = sizeof(struct in_addr);
+          addrlen = sizeof(aquery->addr.addrV4);
           status = ares_parse_ptr_reply(abuf, alen, &aquery->addr.addrV4,
                                         (int)addrlen, AF_INET, &host);
         }
       else
         {
-          addrlen = sizeof(struct in6_addr);
+          addrlen = sizeof(aquery->addr.addrV6);
           status = ares_parse_ptr_reply(abuf, alen, &aquery->addr.addrV6,
                                         (int)addrlen, AF_INET6, &host);
         }
@@ -187,12 +180,18 @@ static int file_lookup(struct ares_addr *addr, struct hostent **host)
 
 #ifdef WIN32
   char PATH_HOSTS[MAX_PATH];
-  if (IS_NT()) {
+  win_platform platform;
+
+  PATH_HOSTS[0] = '\0';
+
+  platform = ares__getplatform();
+
+  if (platform == WIN_NT) {
     char tmp[MAX_PATH];
     HKEY hkeyHosts;
 
-    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, WIN_NS_NT_KEY, 0, KEY_READ, &hkeyHosts)
-        == ERROR_SUCCESS)
+    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, WIN_NS_NT_KEY, 0, KEY_READ,
+                     &hkeyHosts) == ERROR_SUCCESS)
     {
       DWORD dwLength = MAX_PATH;
       RegQueryValueEx(hkeyHosts, DATABASEPATH, NULL, NULL, (LPBYTE)tmp,
@@ -201,8 +200,10 @@ static int file_lookup(struct ares_addr *addr, struct hostent **host)
       RegCloseKey(hkeyHosts);
     }
   }
-  else
+  else if (platform == WIN_9X)
     GetWindowsDirectory(PATH_HOSTS, MAX_PATH);
+  else
+    return ARES_ENOTFOUND;
 
   strcat(PATH_HOSTS, WIN_PATH_HOSTS);
 
@@ -241,12 +242,14 @@ static int file_lookup(struct ares_addr *addr, struct hostent **host)
         }
       if (addr->family == AF_INET)
         {
-          if (memcmp((*host)->h_addr, &addr->addrV4, sizeof(struct in_addr)) == 0)
+          if (memcmp((*host)->h_addr, &addr->addrV4,
+                     sizeof(addr->addrV4)) == 0)
             break;
         }
       else if (addr->family == AF_INET6)
         {
-          if (memcmp((*host)->h_addr, &addr->addrV6, sizeof(struct in6_addr)) == 0)
+          if (memcmp((*host)->h_addr, &addr->addrV6,
+                     sizeof(addr->addrV6)) == 0)
             break;
         }
       ares_free_hostent(*host);
@@ -264,15 +267,15 @@ static void ptr_rr_name(char *name, const struct ares_addr *addr)
   if (addr->family == AF_INET)
     {
        unsigned long laddr = ntohl(addr->addrV4.s_addr);
-       int a1 = (int)((laddr >> 24) & 0xff);
-       int a2 = (int)((laddr >> 16) & 0xff);
-       int a3 = (int)((laddr >> 8) & 0xff);
-       int a4 = (int)(laddr & 0xff);
-       sprintf(name, "%d.%d.%d.%d.in-addr.arpa", a4, a3, a2, a1);
+       unsigned long a1 = (laddr >> 24UL) & 0xFFUL;
+       unsigned long a2 = (laddr >> 16UL) & 0xFFUL;
+       unsigned long a3 = (laddr >>  8UL) & 0xFFUL;
+       unsigned long a4 = laddr & 0xFFUL;
+       sprintf(name, "%lu.%lu.%lu.%lu.in-addr.arpa", a4, a3, a2, a1);
     }
   else
     {
-       unsigned char *bytes = (unsigned char *)&addr->addrV6.s6_addr;
+       unsigned char *bytes = (unsigned char *)&addr->addrV6;
        /* There are too many arguments to do this in one line using
         * minimally C89-compliant compilers */
        sprintf(name,

@@ -3,7 +3,6 @@
 #               / __|____ / _` | '__/ _ \/ __|
 #              | (_|_____| (_| | | |  __/\__ \
 #               \___|     \__,_|_|  \___||___/
-# $Id: libcares.pc.in,v 1.3 2008-06-09 01:07:00 yangtse Exp $
 #
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -16,6 +15,6 @@ Description: asynchronous DNS lookup library
 Version: @VERSION@
 Requires: 
 Requires.private: 
-Cflags: -I${includedir}
+Cflags: -I${includedir} @CPPFLAG_CARES_STATICLIB@
 Libs: -L${libdir} -lcares
 Libs.private: @CARES_PRIVATE_LIBS@

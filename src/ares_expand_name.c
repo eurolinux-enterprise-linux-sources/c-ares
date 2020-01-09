@@ -1,6 +1,5 @@
-/* $Id: ares_expand_name.c,v 1.20 2009-11-02 11:55:53 yangtse Exp $ */
 
-/* Copyright 1998 by the Massachusetts Institute of Technology.
+/* Copyright 1998, 2011 by the Massachusetts Institute of Technology.
  *
  * Permission to use, copy, modify, and distribute this
  * software and its documentation for any purpose and without
@@ -17,9 +16,6 @@
 
 #include "ares_setup.h"
 
-#ifdef HAVE_SYS_SOCKET_H
-#  include <sys/socket.h>
-#endif
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
 #endif
@@ -32,8 +28,8 @@
 #  include <arpa/nameser_compat.h>
 #endif
 
-#include <stdlib.h>
 #include "ares.h"
+#include "ares_nowarn.h"
 #include "ares_private.h" /* for the memdebug */
 
 static int name_length(const unsigned char *encoded, const unsigned char *abuf,
@@ -69,22 +65,33 @@ int ares_expand_name(const unsigned char *encoded, const unsigned char *abuf,
   int len, indir = 0;
   char *q;
   const unsigned char *p;
+  union {
+    ssize_t sig;
+     size_t uns;
+  } nlen;
 
-  len = name_length(encoded, abuf, alen);
-  if (len < 0)
+  nlen.sig = name_length(encoded, abuf, alen);
+  if (nlen.sig < 0)
     return ARES_EBADNAME;
 
-  *s = malloc(((size_t)len) + 1);
+  *s = malloc(nlen.uns + 1);
   if (!*s)
     return ARES_ENOMEM;
   q = *s;
 
-  if (len == 0) {
+  if (nlen.uns == 0) {
     /* RFC2181 says this should be ".": the root of the DNS tree.
      * Since this function strips trailing dots though, it becomes ""
      */
     q[0] = '\0';
-    *enclen = 1;  /* the caller should move one byte to get past this */
+
+    /* indirect root label (like 0xc0 0x0c) is 2 bytes long (stupid, but
+       valid) */
+    if ((*encoded & INDIR_MASK) == INDIR_MASK)
+      *enclen = 2L;
+    else
+      *enclen = 1L;  /* the caller should move one byte to get past this */
+
     return ARES_SUCCESS;
   }
 
@@ -96,7 +103,7 @@ int ares_expand_name(const unsigned char *encoded, const unsigned char *abuf,
         {
           if (!indir)
             {
-              *enclen = p + 2 - encoded;
+              *enclen = aresx_uztosl(p + 2U - encoded);
               indir = 1;
             }
           p = abuf + ((*p & ~INDIR_MASK) << 8 | *(p + 1));
@@ -116,7 +123,7 @@ int ares_expand_name(const unsigned char *encoded, const unsigned char *abuf,
         }
     }
   if (!indir)
-    *enclen = p + 1 - encoded;
+    *enclen = aresx_uztosl(p + 1U - encoded);
 
   /* Nuke the trailing period if we wrote one. */
   if (q > *s)
@@ -136,7 +143,7 @@ static int name_length(const unsigned char *encoded, const unsigned char *abuf,
   int n = 0, offset, indir = 0;
 
   /* Allow the caller to pass us abuf + alen and have us check for it. */
-  if (encoded == abuf + alen)
+  if (encoded >= abuf + alen)
     return -1;
 
   while (*encoded)

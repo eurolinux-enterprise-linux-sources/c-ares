@@ -1,5 +1,4 @@
 /*
- * $Id: acountry.c,v 1.18 2009-11-10 18:41:03 yangtse Exp $
  *
  * IP-address/hostname to country converter.
  *
@@ -35,14 +34,6 @@
 
 #include "ares_setup.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <string.h>
-#include <ctype.h>
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
 #ifdef HAVE_STRINGS_H
 #include <strings.h>
 #endif
@@ -50,7 +41,6 @@
 #if defined(WIN32) && !defined(WATT32)
   #include <winsock.h>
 #else
-  #include <sys/socket.h>
   #include <arpa/inet.h>
   #include <netinet/in.h>
   #include <netdb.h>
@@ -58,8 +48,7 @@
 
 #include "ares.h"
 #include "ares_getopt.h"
-#include "inet_net_pton.h"
-#include "inet_ntop.h"
+#include "ares_nowarn.h"
 
 #ifndef HAVE_STRDUP
 #  include "ares_strdup.h"
@@ -89,7 +78,7 @@ static int         verbose    = 0;
 #define TRACE(fmt) do {               \
                      if (verbose > 0) \
                        printf fmt ;   \
-                   } while (0)
+                   } WHILE_FALSE
 
 static void wait_ares(ares_channel channel);
 static void callback(void *arg, int status, int timeouts, struct hostent *host);
@@ -559,8 +548,8 @@ static void find_country_from_cname(const char *cname, struct in_addr addr)
   unsigned long ip;
 
   ip = ntohl(addr.s_addr);
-  z0 = tolower(cname[0]);
-  z1 = tolower(cname[1]);
+  z0 = TOLOWER(cname[0]);
+  z1 = TOLOWER(cname[1]);
   ccopy = strdup(cname);
   dot_4 = NULL;
 
@@ -578,8 +567,8 @@ static void find_country_from_cname(const char *cname, struct in_addr addr)
     }
   else if (ver_2)
     {
-      z0 = tolower(dot_4[1]);
-      z1 = tolower(dot_4[2]);
+      z0 = TOLOWER(dot_4[1]);
+      z1 = TOLOWER(dot_4[2]);
       if (z0 != 'z' && z1 != 'z')
         {
           printf("Unexpected CNAME %s (ver_2)\n", cname);
@@ -594,8 +583,8 @@ static void find_country_from_cname(const char *cname, struct in_addr addr)
 
   if (ver_1)
     {
-      ccode_A2[0] = (char)tolower(cname[2]);
-      ccode_A2[1] = (char)tolower(cname[3]);
+      ccode_A2[0] = (char)TOLOWER(cname[2]);
+      ccode_A2[1] = (char)TOLOWER(cname[3]);
       ccode_A2[2] = '\0';
     }
   else

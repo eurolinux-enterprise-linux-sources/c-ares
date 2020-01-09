@@ -1,5 +1,5 @@
 #***************************************************************************
-# $Id: cares-reentrant.m4,v 1.5 2009-11-14 18:51:37 yangtse Exp $
+# $Id$
 #
 # Copyright (C) 2008 - 2009 by Daniel Stenberg et al
 #
@@ -16,7 +16,7 @@
 #***************************************************************************
 
 # File version for 'aclocal' use. Keep it a single number.
-# serial 4
+# serial 6
 
 dnl Note 1
 dnl ------

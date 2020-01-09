@@ -1,5 +1,4 @@
 #############################################################
-# $Id: Makefile.m32,v 1.7 2009-04-30 11:48:43 yangtse Exp $
 #
 ## Makefile for building libcares.a with MingW32 (GCC-3.2)
 ## Use: make -f Makefile.m32 [demos]
@@ -11,12 +10,15 @@
 
 LIB	= libcares.a
 
+AR	= ar
 CC	= gcc
 LD	= gcc
 RANLIB	= ranlib
 #RM	= rm -f
+CP	= cp -afv
 
-CFLAGS	= -O2 -Wall
+CFLAGS	= -O2 -Wall -I.
+CFLAGS	+= -DCARES_STATICLIB
 LDFLAGS	= -s
 LIBS	= -lwsock32
 
@@ -27,7 +29,7 @@ OBJLIB	:= $(patsubst %.c,%.o,$(strip $(CSOURCES)))
 
 
 $(LIB): $(OBJLIB)
-	ar cru $@ $^
+	$(AR) cru $@ $^
 	$(RANLIB) $@
 
 all: $(LIB) demos
@@ -44,6 +46,9 @@ $(OBJLIB): ares.h ares_dns.h ares_private.h ares_build.h ares_rules.h
 
 .c.o:
 	$(CC) $(CFLAGS) -c $<
+
+ares_build.h:
+	$(CP) ares_build.h.dist ares_build.h
 
 check:
 
@@ -66,4 +71,7 @@ clean:
 
 distclean: clean
 	$(RM) config.cache config.log config.status Makefile
+ifeq "$(wildcard ares_build.h.dist)" "ares_build.h.dist"
+	$(RM) ares_build.h
+endif
 

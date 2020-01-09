@@ -1,36 +1,35 @@
-This is what's new and changed in the c-ares 1.7.0 release:
+c-ares version 1.10.0
 
-Changed:
+Changes:
 
- o in6_addr is not used in ares.h anymore, but a private ares_in6_addr is
-   instead declared and used
- o ares_gethostbyname() now supports 'AF_UNSPEC' as a family for resolving
-   either AF_INET6 or AF_INET
- o a build-time configured ares_socklen_t is now used instead of socklen_t
- o new ares_library_init() and ares_library_cleanup() functions
- o new --enable-curldebug configure option
- o ARES_ECANCELLED is now sent as reason for ares_cancel()
- o added ares_parse_srv_reply()
- o added ares_parse_txt_reply()
- o added ares_free_data()
- o new --enable-symbol-hiding configure option
- o new Makefile.msvc for any MSVC compiler or MS Visual Studio version
- o addrttl and addr6ttl structs renamed to ares_addrttl and ares_addr6ttl
- o naming convention for libraries built with MSVC, see README.msvc
+ o Added ares_create_query(), to be used instead of ares_mkquery()
+ o ares_inet_ntop() and ares_inet_pton() are now recognized c-ares functions
 
-Fixed:
+Bug fixes:
 
- o ares_parse_*_reply() functions now return ARES_EBADRESP instead of
-   ARES_EBADNAME if the name in the response failed to decode
- o only expose/export symbols starting with 'ares_'
- o fix \Device\TCP handle leaks triggered by buggy iphlpapi.dll
- o init without internet gone no longer fails
- o out of bounds memory overwrite triggered with malformed /etc/hosts file
- o function prototypes in man pages out of sync with ares.h
-
+ o include the ares_parse_soa_reply.* files in the tarball
+ o read_udp_packets: bail out loop on bad sockets
+ o get_DNS_AdaptersAddresses: fix IPv6 parsing
+ o adig: perror() doesn't work for socket errors on windows
+ o ares_parse_aaaa_reply: fix memory leak
+ o setup_once.h: HP-UX <sys/socket.h> issue workaround
+ o configure: several fixes
+ o config-dos.h: define strerror() to strerror_s_() for High-C
+ o config-dos.h: define HAVE_CLOSE_S for MSDOS/Watt-32
+ o ares_build.h.dist: enhance non-configure GCC ABI detection logic
+ o ares.h: stricter CARES_EXTERN linkage decorations logic
+ o ares_cancel(): cancel requests safely
+ o protocol parsing: check input data stricter
+ o library init: be recursive, reference count inits/cleanups
+ o ares_parse_txt_reply: return a ares_txt_reply node for each sub-string
+ o ares_set_servers_csv: fixed IPv6 address parsing
+ o build: fix build on msvc11
+ 
 Thanks go to these friendly people for their efforts and contributions:
 
- Phil Blundell, Japheth Cleaver, Yang Tse, Gregor Jasny, Joshua Kwan,
- Timo Teras, Jakub Hrozek, John Engelhart, Larry Lansing
+ Eugeny Gladkih, Yang Tse, Gisle Vanem, Guenter Knauf, Horatiu Popescu,
+ Alexander Klauer, Patrick Valsecchi, Paul Saab, Keith Shaw,
+ Alex Loukissas
+ 
 
 Have fun!

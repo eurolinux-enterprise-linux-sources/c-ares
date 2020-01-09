@@ -1,6 +1,5 @@
 /* Copyright 1998 by the Massachusetts Institute of Technology.
  *
- * $Id: adig.c,v 1.43 2009-11-16 20:02:12 yangtse Exp $
  *
  * Permission to use, copy, modify, and distribute this
  * software and its documentation for any purpose and without
@@ -17,9 +16,6 @@
 
 #include "ares_setup.h"
 
-#ifdef HAVE_SYS_SOCKET_H
-#  include <sys/socket.h>
-#endif
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
 #endif
@@ -38,27 +34,14 @@
 #  include <arpa/nameser_compat.h>
 #endif
 
-#ifdef HAVE_SYS_TIME_H
-#  include <sys/time.h>
-#endif
-#ifdef HAVE_UNISTD_H
-#  include <unistd.h>
-#endif
 #ifdef HAVE_STRINGS_H
 #  include <strings.h>
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <errno.h>
-
 #include "ares.h"
 #include "ares_dns.h"
-#include "inet_ntop.h"
-#include "inet_net_pton.h"
 #include "ares_getopt.h"
+#include "ares_nowarn.h"
 
 #ifndef HAVE_STRDUP
 #  include "ares_strdup.h"
@@ -79,14 +62,26 @@
 #undef WIN32  /* Redefined in MingW headers */
 #endif
 
-/* Mac OS X portability check */
 #ifndef T_SRV
-#define T_SRV 33 /* server selection */
+#  define T_SRV     33 /* Server selection */
 #endif
-
-/* AIX portability check */
 #ifndef T_NAPTR
-#define T_NAPTR 35 /* naming authority pointer */
+#  define T_NAPTR   35 /* Naming authority pointer */
+#endif
+#ifndef T_DS
+#  define T_DS      43 /* Delegation Signer (RFC4034) */
+#endif
+#ifndef T_SSHFP
+#  define T_SSHFP   44 /* SSH Key Fingerprint (RFC4255) */
+#endif
+#ifndef T_RRSIG
+#  define T_RRSIG   46 /* Resource Record Signature (RFC4034) */
+#endif
+#ifndef T_NSEC
+#  define T_NSEC    47 /* Next Secure (RFC4034) */
+#endif
+#ifndef T_DNSKEY
+#  define T_DNSKEY  48 /* DNS Public Key (RFC4034) */
 #endif
 
 struct nv {
@@ -147,6 +142,11 @@ static const struct nv types[] = {
   { "MAILB",    T_MAILB },
   { "MAILA",    T_MAILA },
   { "NAPTR",    T_NAPTR },
+  { "DS",       T_DS },
+  { "SSHFP",    T_SSHFP },
+  { "RRSIG",    T_RRSIG },
+  { "NSEC",     T_NSEC },
+  { "DNSKEY",   T_DNSKEY },
   { "ANY",      T_ANY }
 };
 static const int ntypes = sizeof(types) / sizeof(types[0]);
@@ -164,8 +164,6 @@ static const char *rcodes[] = {
   "(unknown)", "(unknown)", "(unknown)", "(unknown)", "NOCHANGE"
 };
 
-static struct in_addr inaddr;
-
 static void callback(void *arg, int status, int timeouts,
                      unsigned char *abuf, int alen);
 static const unsigned char *display_question(const unsigned char *aptr,
@@ -176,6 +174,9 @@ static const unsigned char *display_rr(const unsigned char *aptr,
 static const char *type_name(int type);
 static const char *class_name(int dnsclass);
 static void usage(void);
+static void destroy_addr_list(struct ares_addr_node *head);
+static void append_addr_list(struct ares_addr_node **head,
+                             struct ares_addr_node *node);
 
 int main(int argc, char **argv)
 {
@@ -186,6 +187,7 @@ int main(int argc, char **argv)
   struct hostent *hostent;
   fd_set read_fds, write_fds;
   struct timeval *tvp, tv;
+  struct ares_addr_node *srvr, *servers = NULL;
 
 #ifdef USE_WINSOCK
   WORD wVersionRequested = MAKEWORD(USE_WINSOCK,USE_WINSOCK);
@@ -227,27 +229,56 @@ int main(int argc, char **argv)
           break;
 
         case 's':
-          /* Add a server, and specify servers in the option mask. */
-          if (ares_inet_pton(AF_INET, optarg, &inaddr) <= 0)
-            {
-              hostent = gethostbyname(optarg);
-              if (!hostent || hostent->h_addrtype != AF_INET)
-                {
-                  fprintf(stderr, "adig: server %s not found.\n", optarg);
-                  return 1;
-                }
-              memcpy(&inaddr, hostent->h_addr, sizeof(struct in_addr));
-            }
-          options.servers = realloc(options.servers, (options.nservers + 1)
-                                    * sizeof(struct in_addr));
-          if (!options.servers)
+          /* User-specified name servers override default ones. */
+          srvr = malloc(sizeof(struct ares_addr_node));
+          if (!srvr)
             {
               fprintf(stderr, "Out of memory!\n");
+              destroy_addr_list(servers);
               return 1;
             }
-          memcpy(&options.servers[options.nservers], &inaddr,
-                 sizeof(struct in_addr));
-          options.nservers++;
+          append_addr_list(&servers, srvr);
+          if (ares_inet_pton(AF_INET, optarg, &srvr->addr.addr4) > 0)
+            srvr->family = AF_INET;
+          else if (ares_inet_pton(AF_INET6, optarg, &srvr->addr.addr6) > 0)
+            srvr->family = AF_INET6;
+          else
+            {
+              hostent = gethostbyname(optarg);
+              if (!hostent)
+                {
+                  fprintf(stderr, "adig: server %s not found.\n", optarg);
+                  destroy_addr_list(servers);
+                  return 1;
+                }
+              switch (hostent->h_addrtype)
+                {
+                  case AF_INET:
+                    srvr->family = AF_INET;
+                    memcpy(&srvr->addr.addr4, hostent->h_addr,
+                           sizeof(srvr->addr.addr4));
+                    break;
+                  case AF_INET6:
+                    srvr->family = AF_INET6;
+                    memcpy(&srvr->addr.addr6, hostent->h_addr,
+                           sizeof(srvr->addr.addr6));
+                    break;
+                  default:
+                    fprintf(stderr,
+                      "adig: server %s unsupported address family.\n", optarg);
+                    destroy_addr_list(servers);
+                    return 1;
+                }
+            }
+          /* Notice that calling ares_init_options() without servers in the
+           * options struct and with ARES_OPT_SERVERS set simultaneously in
+           * the options mask, results in an initialization with no servers.
+           * When alternative name servers have been specified these are set
+           * later calling ares_set_servers() overriding any existing server
+           * configuration. To prevent initial configuration with default
+           * servers that will be discarded later, ARES_OPT_SERVERS is set.
+           * If this flag is not set here the result shall be the same but
+           * ares_init_options() will do needless work. */
           optmask |= ARES_OPT_SERVERS;
           break;
 
@@ -308,6 +339,18 @@ int main(int argc, char **argv)
       return 1;
     }
 
+  if(servers)
+    {
+      status = ares_set_servers(channel, servers);
+      destroy_addr_list(servers);
+      if (status != ARES_SUCCESS)
+        {
+          fprintf(stderr, "ares_init_options: %s\n",
+                  ares_strerror(status));
+          return 1;
+        }
+    }
+
   /* Initiate the queries, one per command-line argument.  If there is
    * only one query to do, supply NULL as the callback argument;
    * otherwise, supply the query name as an argument so we can
@@ -331,9 +374,9 @@ int main(int argc, char **argv)
         break;
       tvp = ares_timeout(channel, NULL, &tv);
       count = select(nfds, &read_fds, &write_fds, NULL, tvp);
-      if (count < 0 && SOCKERRNO != EINVAL)
+      if (count < 0 && (status = SOCKERRNO) != EINVAL)
         {
-          perror("select");
+          printf("select fail: %d", status);
           return 1;
         }
       ares_process(channel, &read_fds, &write_fds);
@@ -590,7 +633,7 @@ static const unsigned char *display_rr(const unsigned char *aptr,
        */
       if (dlen < 2)
         return NULL;
-      printf("\t%d", DNS__16BIT(aptr));
+      printf("\t%d", (int)DNS__16BIT(aptr));
       status = ares_expand_name(aptr + 2, abuf, alen, &name.as_char, &len);
       if (status != ARES_SUCCESS)
         return NULL;
@@ -617,10 +660,10 @@ static const unsigned char *display_rr(const unsigned char *aptr,
       p += len;
       if (p + 20 > aptr + dlen)
         return NULL;
-      printf("\t\t\t\t\t\t( %lu %lu %lu %lu %lu )",
-             (unsigned long)DNS__32BIT(p), (unsigned long)DNS__32BIT(p+4),
-             (unsigned long)DNS__32BIT(p+8), (unsigned long)DNS__32BIT(p+12),
-             (unsigned long)DNS__32BIT(p+16));
+      printf("\t\t\t\t\t\t( %u %u %u %u %u )",
+             DNS__32BIT(p), DNS__32BIT(p+4),
+             DNS__32BIT(p+8), DNS__32BIT(p+12),
+             DNS__32BIT(p+16));
       break;
 
     case T_TXT:
@@ -664,9 +707,9 @@ static const unsigned char *display_rr(const unsigned char *aptr,
        * priority, weight, and port, followed by a domain name.
        */
 
-      printf("\t%d", DNS__16BIT(aptr));
-      printf(" %d", DNS__16BIT(aptr + 2));
-      printf(" %d", DNS__16BIT(aptr + 4));
+      printf("\t%d", (int)DNS__16BIT(aptr));
+      printf(" %d", (int)DNS__16BIT(aptr + 2));
+      printf(" %d", (int)DNS__16BIT(aptr + 4));
 
       status = ares_expand_name(aptr + 6, abuf, alen, &name.as_char, &len);
       if (status != ARES_SUCCESS)
@@ -677,8 +720,8 @@ static const unsigned char *display_rr(const unsigned char *aptr,
 
     case T_NAPTR:
 
-      printf("\t%d", DNS__16BIT(aptr)); /* order */
-      printf(" %d\n", DNS__16BIT(aptr + 2)); /* preference */
+      printf("\t%d", (int)DNS__16BIT(aptr)); /* order */
+      printf(" %d\n", (int)DNS__16BIT(aptr + 2)); /* preference */
 
       p = aptr + 4;
       status = ares_expand_string(p, abuf, alen, &name.as_uchar, &len);
@@ -702,13 +745,20 @@ static const unsigned char *display_rr(const unsigned char *aptr,
       ares_free_string(name.as_char);
       p += len;
 
-      status = ares_expand_string(p, abuf, alen, &name.as_uchar, &len);
+      status = ares_expand_name(p, abuf, alen, &name.as_char, &len);
       if (status != ARES_SUCCESS)
         return NULL;
       printf("\t\t\t\t\t\t%s", name.as_char);
       ares_free_string(name.as_char);
       break;
 
+    case T_DS:
+    case T_SSHFP:
+    case T_RRSIG:
+    case T_NSEC:
+    case T_DNSKEY:
+      printf("\t[RR type parsing unavailable]");
+      break;
 
     default:
       printf("\t[Unknown RR; cannot parse]");
@@ -748,4 +798,30 @@ static void usage(void)
   fprintf(stderr, "usage: adig [-f flag] [-s server] [-c class] "
           "[-t type] [-p port] name ...\n");
   exit(1);
+}
+
+static void destroy_addr_list(struct ares_addr_node *head)
+{
+  while(head)
+    {
+      struct ares_addr_node *detached = head;
+      head = head->next;
+      free(detached);
+    }
+}
+
+static void append_addr_list(struct ares_addr_node **head,
+                             struct ares_addr_node *node)
+{
+  struct ares_addr_node *last;
+  node->next = NULL;
+  if(*head)
+    {
+      last = *head;
+      while(last->next)
+        last = last->next;
+      last->next = node;
+    }
+  else
+    *head = node;
 }

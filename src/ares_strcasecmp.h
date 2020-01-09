@@ -1,7 +1,6 @@
 #ifndef HEADER_CARES_STRCASECMP_H
 #define HEADER_CARES_STRCASECMP_H
 
-/* $Id: ares_strcasecmp.h,v 1.2 2009-11-02 11:55:53 yangtse Exp $ */
 
 /* Copyright 1998 by the Massachusetts Institute of Technology.
  *

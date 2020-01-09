@@ -1,0 +1,25 @@
+From bffd67f16a8f42fe6dbf79ab2e39d92eea05c8a6 Mon Sep 17 00:00:00 2001
+From: Tom Hughes <tom.hughes@palm.com>
+Date: Wed, 27 Jul 2011 14:13:55 -0700
+Subject: [PATCH] ares_parse_a_reply: fix memleak
+
+---
+ ares_parse_a_reply.c |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/ares_parse_a_reply.c b/ares_parse_a_reply.c
+index 66d9bdf974d42c0abd40f1aba52c86a7fe8b4978..4bd08458836bdc014d0f38570fa17e97b4bb1ef9 100644
+--- a/ares_parse_a_reply.c
++++ b/ares_parse_a_reply.c
+@@ -241,6 +241,8 @@ int ares_parse_a_reply(const unsigned char *abuf, int alen,
+                   for (i = 0; i < naddrs; i++)
+                     hostent->h_addr_list[i] = (char *) &addrs[i];
+                   hostent->h_addr_list[naddrs] = NULL;
++                  if (!naddrs && addrs)
++                    free(addrs);
+                   *host = hostent;
+                   return ARES_SUCCESS;
+                 }
+-- 
+1.7.7.6
+

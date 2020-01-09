@@ -1,0 +1,19 @@
+diff -up ./ares_gethostbyname.3.enodata ./ares_gethostbyname.3
+--- ./ares_gethostbyname.3.enodata	2007-09-28 22:21:29.000000000 +0200
++++ ./ares_gethostbyname.3	2012-03-04 17:22:04.920044711 +0100
+@@ -68,10 +68,13 @@ is composed entirely of numbers and peri
+ representation of an Internet address.
+ .TP 19
+ .B ARES_ENOTFOUND
+-The address
+-.I addr
++The address for
++.I name
+ was not found.
+ .TP 19
++.B ARES_ENODATA
++The DNS lookup returned no data
++.TP 19
+ .B ARES_ENOMEM
+ Memory was exhausted.
+ .TP 19

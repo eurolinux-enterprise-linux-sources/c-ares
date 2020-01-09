@@ -1,7 +1,7 @@
 Summary: A library that performs asynchronous DNS operations
 Name: c-ares
 Version: 1.7.0
-Release: 5%{?dist}
+Release: 6%{?dist}
 License: MIT
 Group: System Environment/Libraries
 URL: http://c-ares.haxx.se/
@@ -11,6 +11,11 @@ Patch0: %{name}-1.7.0-optflags.patch
 Patch1: 0001-Allow-the-use-of-IPv6-nameservers.patch
 Patch2: c-ares-multilib.patch
 Patch3: 0001-ares_init-Last-not-first-instance-of-domain-or-searc.patch
+Patch4: 0001-Only-fall-back-to-AF_INET-searches-when-looking-for-.patch
+Patch5: 0001-ares_parse_a_reply-fix-memleak.patch
+Patch6: c-ares-1.7-missing-break.patch
+Patch7: c-ares-1.7-sigbus.patch
+Patch8: c-ares-enodata.patch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %description
@@ -34,6 +39,11 @@ compile applications or shared objects that use c-ares.
 %patch1 -p1 -b .ipv6
 %patch2 -p1 -b .multilib
 %patch3 -p1 -b .search
+%patch4 -p1 -b .fallback
+%patch5 -p1 -b .memleak
+%patch6 -p1 -b .break
+%patch7 -p1 -b .sigbus
+%patch8 -p1 -b .enodata
 cp %{SOURCE1} .
 f=CHANGES ; iconv -f iso-8859-1 -t utf-8 $f -o $f.utf8 ; mv $f.utf8 $f
 
@@ -70,6 +80,17 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man3/ares_*
 
 %changelog
+* Sat Mar  3 2012 Jakub Hrozek <jhrozek@redhat.com> - 1.7.0-6
+- Only fall back to AF_INET searches when looking for AF_UNSPEC
+  addresses (#730695)
+- Do not leak memory in ares_parse_a_reply when parsing an invalid
+  record (#730693)
+- Add a missing break (#713133) - reported and patched by Michal Luscon
+- Fix a SIGBUS when resolving SRV queries on architectures that do
+  not support unaligned memory access (#695426)
+- Amend the ares_gethostbyname manpage so that it lists ARES_ENODATA as
+  an allowed return code (#640944)
+
 * Mon Jun  7 2010 Jakub Hrozek <jhrozek@redhat.com> - 1.7.0-5
 - Actually apply patch for rhbz#597287
 
